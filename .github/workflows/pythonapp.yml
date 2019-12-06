@@ -15,4 +15,4 @@ jobs:
         python-version: 2.7
     - name: Test with pytest
       run: |
-        libGH.py
+        python ./libGH.py
