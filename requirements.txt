@@ -1,1 +1,1 @@
-pip requests
+requests
