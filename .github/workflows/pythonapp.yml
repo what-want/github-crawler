@@ -5,8 +5,6 @@ on: [push]
 jobs:
   build:
 
-    if: !github.commit_message.contains("ci skip")
-
     runs-on: ubuntu-latest
     
     steps:
