@@ -6,6 +6,7 @@ jobs:
   build:
 
     runs-on: ubuntu-latest
+    if: !github.commit_message.contains("ci skip")
 
     steps:
     - uses: actions/checkout@v1
