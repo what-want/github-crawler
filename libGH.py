@@ -190,6 +190,7 @@ if __name__ == "__main__":
     if( "WW_TOKEN" in os.environ.keys() ):
         CFG['TOKEN'] = os.environ["WW_TOKEN"]
 
+    CFG['TOKEN'] = os.environ.get('WW_TOKEN', "")
     print( "TOKEN = %s" % CFG['TOKEN'] )
 
 
