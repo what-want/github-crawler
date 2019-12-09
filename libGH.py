@@ -187,9 +187,10 @@ if __name__ == "__main__":
 
     pp = pprint.PrettyPrinter(indent=4)
 
+    if( "WW_TOKEN" in os.environ.keys() ):
+        CFG['TOKEN'] = os.environ["WW_TOKEN"]
 
-    CFG['TOKEN'] = os.getenv('WW_TOKEN', '')
-
+    print( "TOKEN = %s" % CFG['TOKEN'] )
 
 
 
