@@ -188,6 +188,10 @@ if __name__ == "__main__":
     pp = pprint.PrettyPrinter(indent=4)
 
 
+    CFG['TOKEN'] = os.getenv('WW_TOKEN', '')
+
+
+
 
     ###
     # 이슈 검색하는 것 테스트 코드
