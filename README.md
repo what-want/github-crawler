@@ -1,3 +1,3 @@
 ![](https://github.com/what-want/github-crawler/workflows/crawling/badge.svg)
-# github-crawler
+# GitHub Crawler
 github crawler
