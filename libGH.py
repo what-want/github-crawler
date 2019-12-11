@@ -13,47 +13,46 @@ class GH_Template( string.Template ):
     delimiter = ":"
 
 
-CFG = {
+API = {
 
-    "GH-API" : {
-
-        "ISSUES-REPO" : {
-            "URL"  : "https://api.github.com/repos/:owner/:repo/issues",
-            "TYPE" : "GET"
-        },
-
-        "SEARCH-REPO" : {
-            "URL"  : "https://api.github.com/search/repositories?q=:q&sort=:sort&order=:order",
-            "TYPE" : "GET"
-        },
-
-        "SEARCH-ISSUE" : {
-            "URL"  : "https://api.github.com/search/issues?q=:q",
-            "TYPE" : "GET"
-        },
-
-        "SEARCH-COMMIT" : {
-            "URL"  : "https://api.github.com/search/commits?q=:q",
-            "TYPE" : "GET"
-        },
-
-        "RELEASES-REPO" : {
-            "URL"  : "https://api.github.com/repos/:owner/:repo/releases",
-            "TYPE" : "GET"
-        },
-
-        "TAGS-REPO" : {
-            "URL"  : "https://api.github.com/repos/:owner/:repo/tags",
-            "TYPE" : "GET"
-        },
-
-        "CONTRIBUTORS-REPO" : {
-            "URL"  : "https://api.github.com/repos/:owner/:repo/contributors",
-            "TYPE" : "GET"
-        },
-
+    "ISSUES-REPO" : {
+        "URL"  : "https://api.github.com/repos/:owner/:repo/issues",
+        "TYPE" : "GET"
     },
 
+    "SEARCH-REPO" : {
+        "URL"  : "https://api.github.com/search/repositories?q=:q&sort=:sort&order=:order",
+        "TYPE" : "GET"
+    },
+
+    "SEARCH-ISSUE" : {
+        "URL"  : "https://api.github.com/search/issues?q=:q",
+        "TYPE" : "GET"
+    },
+
+    "SEARCH-COMMIT" : {
+        "URL"  : "https://api.github.com/search/commits?q=:q",
+        "TYPE" : "GET"
+    },
+
+    "RELEASES-REPO" : {
+        "URL"  : "https://api.github.com/repos/:owner/:repo/releases",
+        "TYPE" : "GET"
+    },
+
+    "TAGS-REPO" : {
+        "URL"  : "https://api.github.com/repos/:owner/:repo/tags",
+        "TYPE" : "GET"
+    },
+
+    "CONTRIBUTORS-REPO" : {
+        "URL"  : "https://api.github.com/repos/:owner/:repo/contributors",
+        "TYPE" : "GET"
+    }
+}
+
+
+TEMP_CFG = {
 
     "GH-CONTENTS-URL" : "https://raw.githubusercontent.com/:owner/:repo/:branch/README.md",
 
@@ -70,13 +69,13 @@ CFG = {
 }
 
 
-WW_DEBUG = True
 
 
 
-def GH_API( API, TEMPLATE, TOKEN, HEADERS=None ):
 
-    (flag, msg, result) = (True, "", "")
+def getAPI( API, TEMPLATE, TOKEN, HEADERS=None ):
+
+    (flag, msg, result) = (True, {}, "")
 
     URL = GH_Template( API['URL'] ).safe_substitute( TEMPLATE )
     URL += "&" if ( "?" in URL ) else "?"
@@ -89,9 +88,7 @@ def GH_API( API, TEMPLATE, TOKEN, HEADERS=None ):
     if( "per_page" in TEMPLATE.keys() ):
         URL = "%s&per_page=%s" % (URL, TEMPLATE['per_page'])
 
-    if( WW_DEBUG ):
-        print( "[DEBUG] (GH_API) URL = %s" % URL )
-
+    msg['URL'] = URL
 
 
     # params 사용하는 것으로 고민 필요
@@ -119,7 +116,7 @@ def GH_API( API, TEMPLATE, TOKEN, HEADERS=None ):
         if( not results.status_code in [ 200, 201, 204 ] ):
 
             flag = False
-            msg = "Recieved non 200 response : %s" % URL
+            msg['ERROR'] = "Recieved non 200 response : %s" % URL
 
 
         result = json.loads( results.text ) if (results.text != "") else ""
@@ -134,7 +131,7 @@ def GH_API( API, TEMPLATE, TOKEN, HEADERS=None ):
         exit()
 
         flag = False
-        msg = "Error: Exception in GH_API"
+        msg['ERROR'] = "Error: Exception in GH_API"
 
 
     return (flag, msg, result)
@@ -142,7 +139,7 @@ def GH_API( API, TEMPLATE, TOKEN, HEADERS=None ):
 
 
 
-def GH_README( URL, TEMPLATE, TOKEN ):
+def getREADME( URL, TEMPLATE, TOKEN ):
 
     (flag, msg, result) = (True, "", "")
 
@@ -182,7 +179,7 @@ def GH_README( URL, TEMPLATE, TOKEN ):
 
 
 
-
+"""
 if __name__ == "__main__":
 
     pp = pprint.PrettyPrinter(indent=4)
@@ -432,3 +429,4 @@ if __name__ == "__main__":
     #pp.pprint( result )
 
     exit()
+"""
