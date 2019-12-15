@@ -118,6 +118,9 @@ def getAPI( API, TEMPLATE, TOKEN, HEADERS=None ):
             flag = False
             msg['ERROR'] = "Recieved non 200 response : %s" % URL
 
+            #print "Error : %s" % results.status_code
+            #print results.text
+
 
         result = json.loads( results.text ) if (results.text != "") else ""
 
