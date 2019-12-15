@@ -6,6 +6,7 @@ import json
 import os
 import sys
 import datetime
+import tarfile
 
 # GitHub 관련된 모듈을 넣어 놓은 모듈
 import libGH as GH
@@ -178,14 +179,35 @@ if __name__ == '__main__':
         created_date_end = created_date_start
 
 
-
-    DATAPATH = os.path.join( "./data/", ("%s.json" % CFG['KEYWORD'].replace(" ", "_")) )
+    DATADIR = "./data"
+    DATAPATH = os.path.join( DATADIR, ("%s.json" % CFG['KEYWORD'].replace(" ", "_")) )
     if( os.path.isfile( DATAPATH ) ):
         os.remove( DATAPATH )
         logger.info( "[%s] remove file: %s" % ("main", DATAPATH) )
 
+    if( not os.path.isdir( DATADIR ) ):
+        os.mkdir( DATADIR )
+        logger.info( "[%s] mkdir: %s" % ("main", DATADIR) )
+
+
     with open(DATAPATH, "w") as f:
         f.write( json.dumps(contents, indent=4) )
     logger.info( "[%s] write file: %s" % ("main", DATAPATH) )
+
+
+
+    TARPATH = os.path.join( "./data/", ("%s.tar.gz" % CFG['KEYWORD'].replace(" ", "_")) )
+
+    if( os.path.isfile( TARPATH ) ):
+        os.remove( TARPATH )
+        logger.info( "[%s] remove file: %s" % ("main", TARPATH) )
+
+    tar = tarfile.open( TARPATH, "w:gz")
+    tar.add( DATAPATH )
+    tar.close()
+    logger.info( "[%s] write tar.gz file: %s" % ("main", TARPATH) )
+
+    #os.remove( DATAPATH )
+    #logger.info( "[%s] remove file: %s" % ("main", DATAPATH) )
 
     exit(0)

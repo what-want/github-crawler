@@ -105,3 +105,4 @@ venv.bak/
 
 # written by whatwant
 *.swp
+data/*.json

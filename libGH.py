@@ -94,6 +94,8 @@ def getAPI( API, TEMPLATE, TOKEN, HEADERS=None ):
     # params 사용하는 것으로 고민 필요
     #requests.request('GET', url, params=params, headers=headers)
 
+    results = None
+
     try:
 
         if( API['TYPE'] == "GET" ):
