@@ -48,6 +48,11 @@ API = {
     "CONTRIBUTORS-REPO" : {
         "URL"  : "https://api.github.com/repos/:owner/:repo/contributors",
         "TYPE" : "GET"
+    },
+
+    "GET-REPO" : {
+        "URL"  : "https://api.github.com/repos/:owner/:repo",
+        "TYPE" : "GET"
     }
 }
 
@@ -144,8 +149,9 @@ def getAPI( API, TEMPLATE, TOKEN, HEADERS=None ):
 
 
 
-def getREADME( URL, TEMPLATE, TOKEN ):
+def getREADME( TEMPLATE, TOKEN ):
 
+    URL = "https://raw.githubusercontent.com/:owner/:repo/:branch/README.md"
     (flag, msg, result) = (True, "", "")
 
     URL = GH_Template( URL ).safe_substitute( TEMPLATE )
@@ -153,9 +159,7 @@ def getREADME( URL, TEMPLATE, TOKEN ):
     if( TOKEN != "" ):
         URL = "%saccess_token=%s" % (URL, TOKEN)
 
-    if( WW_DEBUG ):
-        print( "[DEBUG] (GH_README) URL = %s" % URL )
-
+    results = None
 
     try:
 
@@ -175,263 +179,7 @@ def getREADME( URL, TEMPLATE, TOKEN ):
         exit()
 
         flag = False
-        msg = "Error: Exception in GH_README"
+        msg = "Error: Exception in getREADME"
 
 
     return (flag, msg, result)
-
-
-
-
-
-"""
-if __name__ == "__main__":
-
-    pp = pprint.PrettyPrinter(indent=4)
-
-    if( "WW_TOKEN" in os.environ.keys() ):
-        CFG['TOKEN'] = os.environ["WW_TOKEN"]
-
-    CFG['TOKEN'] = os.environ.get('WW_TOKEN', "")
-    print( "TOKEN = %s" % CFG['TOKEN'] )
-
-
-
-    ###
-    # 이슈 검색하는 것 테스트 코드
-
-    template = {
-        "owner" : "whatwant",
-        "repo"  : "whatwant"
-    }
-
-    #(flag, msg, result) = GH_API( CFG['GH-API']['ISSUES-REPO'], template, CFG['TOKEN'] )
-
-
-
-
-
-
-    ###
-    # Search API 테스트 코드
-
-
-    # 일단 star 많은 순서 위주로 검색을 해봤음
-    template = {
-        "q"        : "",
-        "sort"     : "stars",
-        "order"    : "desc",
-        "page"     : 1,
-        "per_page" : 100
-    }
-
-
-    topics = [
-        "Artificial Intelligence",
-        "Deep Learning",
-        "Machine Learning",
-        "Natural Language Processing",
-        "Computer Vision",
-        "Machine Reasoning"
-    ]
-
-
-    DATAPATH = os.path.join( CFG['PATH']['DATA'], "data.csv" )
-    if( os.path.isfile( DATAPATH ) ):
-        os.remove( DATAPATH )
-
-    contents_order = [
-        'owner', 'repo',
-        'topics',
-        'readme',
-        'created_at', 'updated_at',
-        'language',
-        'owner', 'owner_type',
-        'watchers_count', 'stargazers_count', 'forks_count',
-        'commits_count',
-        'default_branch',
-        'contributors',
-        'releases_count', 'tags_count',
-        'open_issues_count', 'closed_issues_count',
-        'open_pr_count', 'closed_pr_count'
-    ]
-
-    with open(DATAPATH, "w") as f:
-        f.write( ",".join(contents_order) + "\n" )
-
-
-
-
-
-
-
-    for topic in topics:
-
-        # topic으로 검색을 할 것인지, 그냥 검색어로 검색을 할 것인지에 대한 선택
-        #template['q'] = "topic:%s" % topic.replace(" ", "%20")
-        template['q'] = "%s" % topic.replace(" ", "%20")
-
-        # 한 번의 API에 30(per_page)개 결과밖에 안들어오기에, page에 대한 처리 로직 추가
-        template['page'] = 1
-
-
-        while True:
-
-            HEADER = { "Accept" : "application/vnd.github.mercy-preview+json" }
-            (flag, msg, result) = GH_API( CFG['GH-API']['SEARCH-REPO'], template, CFG['TOKEN'], HEADER )
-
-            if( template['page'] == 1 ):
-                print( "topic : %s" % topic )
-                print( "total_count: %s" % result['total_count'] )
-                print( "incomplete results: %s" % "True" if( result['incomplete_results'] ) else "False" )
-
-            if( not "items" in result.keys() ):
-                pp.pprint( result )
-                exit()
-
-            for idx, item in enumerate(result['items']):
-
-                print( "    [%s/%s] : (%s) %s" % ( ((idx+1)+((template['page']-1)*template['per_page'])), result['total_count'], item['stargazers_count'], item['html_url'] ) )
-                write_contents = {}
-
-                temps = item['full_name'].split("/")
-                write_contents['owner'] = temps[0]
-                write_contents['repo'] = temps[1]
-
-                write_contents['topics'] = "#".join( item['topics'] )
-
-                temp = {
-                    "owner"    : write_contents['owner'],
-                    "repo"     : write_contents['repo'],
-                    "branch"   : item['default_branch']
-                }
-                (flag1, msg1, result1) = GH_README( CFG['GH-CONTENTS-URL'], temp, CFG['TOKEN'] )
-                write_contents['readme'] = result1
-
-                write_contents['created_at'] = item['created_at']
-                write_contents['updated_at'] = item['updated_at']
-
-                write_contents['language'] = item['language'] if( item['language'] != None ) else ""
-
-                write_contents['owner'] = item['owner']['login']
-                write_contents['owner_type'] = item['owner']['type']
-
-                write_contents['watchers_count'] = item['watchers_count']
-                write_contents['stargazers_count'] = item['stargazers_count']
-                write_contents['forks_count'] = item['forks_count']
-
-
-                temp = {
-                    "owner"    : write_contents['owner'],
-                    "repo"     : write_contents['repo'],
-                    "per_page" : 100,
-                    "page"     : 1
-                }
-                contributors = []
-                write_contents['commits_count'] = 0
-                while True:
-                    (flag2, msg2, result2) = GH_API( CFG['GH-API']['CONTRIBUTORS-REPO'], temp, CFG['TOKEN'] )
-
-                    for tmp in result2:
-                        contributors.append(  tmp['login'] )
-                        write_contents['commits_count'] += tmp['contributions']
-
-                    if( len(result2) < temp['per_page'] ): break
-                    temp['page'] += 1
-
-                write_contents['default_branch'] = item['default_branch']
-                write_contents['contributors'] = "#".join( contributors )
-
-
-                temp = {
-                    "owner"    : write_contents['owner'],
-                    "repo"     : write_contents['repo'],
-                    "per_page" : 100,
-                    "page"     : 1
-                }
-                releases = []
-                while True:
-                    (flag3, msg3, result3) = GH_API( CFG['GH-API']['RELEASES-REPO'], temp, CFG['TOKEN'] )
-                    releases.extend( result3 )
-
-                    if( len(result3) < temp['per_page'] ): break
-                    temp['page'] += 1
-                write_contents['releases_count'] = len(releases)
-
-
-                write_contents['open_issues_count'] = item['open_issues_count']
-                temp = {
-                    "q"        : "repo:%s+type:issue+state:closed" % item['full_name'],
-                    "per_page" : 1
-                }
-                (flag4, msg4, result4) = GH_API( CFG['GH-API']['SEARCH-ISSUE'], temp, CFG['TOKEN'] )
-                write_contents['closed_issues_count'] = result4['total_count']
-
-
-
-
-                temp = {
-                    "q"        : "repo:%s+type:pr+state:closed" % item['full_name'],
-                    "per_page" : 1
-                }
-                (flag5, msg5, result5) = GH_API( CFG['GH-API']['SEARCH-ISSUE'], temp, CFG['TOKEN'] )
-                write_contents['open_pr_count'] = result5['total_count']
-
-                temp = {
-                    "q"        : "repo:%s+type:pr+state:open" % item['full_name'],
-                    "per_page" : 1
-                }
-                (flag6, msg6, result6) = GH_API( CFG['GH-API']['SEARCH-ISSUE'], temp, CFG['TOKEN'] )
-                write_contents['closed_pr_count'] = result6['total_count']
-
-
-                temp = {
-                    "owner"    : write_contents['owner'],
-                    "repo"     : write_contents['repo'],
-                    "per_page" : 100,
-                    "page"     : 1
-                }
-                tags = []
-                while True:
-                    (flag7, msg7, result7) = GH_API( CFG['GH-API']['TAGS-REPO'], temp, CFG['TOKEN'] )
-                    tags.extend( result7 )
-
-                    if( len(result7) < temp['per_page'] ): break
-                    temp['page'] += 1
-
-                write_contents['tags_count'] = len(tags)
-
-
-                write_content = []
-                for key in contents_order:
-                    if( type(write_contents[key]) == type(1) ):
-                        write_contents[key] = str(write_contents[key])
-                    elif( type(write_contents[key]) == type(None) ):
-                        print key
-                        print write_contents[key]
-                        exit()
-
-                    write_content.append( write_contents[key].encode("utf-8") )
-
-                with open(DATAPATH, "a") as f:
-                    f.write( ",".join(write_content) + "\n" )
-
-
-
-                #pp.pprint( write_contents )
-                #exit()
-
-
-
-
-            if( len(result['items']) < template['per_page'] ): break
-            template['page'] += 1
-            #if( template['page'] > 5 ): break
-
-
-
-
-    #pp.pprint( result )
-
-    exit()
-"""
