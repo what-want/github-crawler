@@ -14,6 +14,9 @@ import libGH as GH
 import pprint
 
 
+pp = pprint.PrettyPrinter(indent=4)
+
+
 if __name__ == '__main__':
 
 
@@ -151,6 +154,8 @@ if __name__ == '__main__':
     api_calls = 0
     for idx, info in enumerate(infos):
 
+        #if( idx < 175 ): continue
+
         if( info['full_name'] in CSV_keys ):
             logger.info( "[%s] (%s/%s) pass exists content: %s" % ("main", (idx+1), infos_count, info['full_name']) )
             continue
@@ -177,7 +182,8 @@ if __name__ == '__main__':
             "branch"   : info['default_branch']
         }
         (flag, msg, result) = GH.getREADME( template, CFG['TOKEN'] )
-        content['readme'] = result if (flag) else "n/a"
+        # 32760 글자 넘어가면 csv에서 컬럼 넘어가버림
+        content['readme'] = result[:15000] if (flag) else "n/a"
 
 
         content['created_at'] = info['created_at']
@@ -205,6 +211,7 @@ if __name__ == '__main__':
         logger.info( "[%s] (%s) URL: %s" % ("getAPI", api_calls, msg['URL']) )
         if( not flag ):
             logger.error( "[%s] %s" % ("getAPI", msg['ERROR']) )
+            pp.pprint( result )
             exit()
 
         #pp = pprint.PrettyPrinter(indent=4)
@@ -235,6 +242,7 @@ if __name__ == '__main__':
             logger.info( "[%s] (%s) URL: %s" % ("getAPI", api_calls, msg['URL']) )
             if( not flag ):
                 logger.error( "[%s] %s" % ("getAPI", msg['ERROR']) )
+                pp.pprint( result )
                 exit()
 
             for result in results:
@@ -266,6 +274,7 @@ if __name__ == '__main__':
             logger.info( "[%s] (%s) URL: %s" % ("getAPI", api_calls, msg['URL']) )
             if( not flag ):
                 logger.error( "[%s] %s" % ("getAPI", msg['ERROR']) )
+                pp.pprint( result )
                 exit()
 
             releases.extend( results )
@@ -290,6 +299,7 @@ if __name__ == '__main__':
         logger.info( "[%s] (%s) URL: %s" % ("getAPI", api_calls, msg['URL']) )
         if( not flag ):
             logger.error( "[%s] %s" % ("getAPI", msg['ERROR']) )
+            pp.pprint( result )
             exit()
 
         content['closed_issues_count'] = result['total_count']
@@ -306,6 +316,7 @@ if __name__ == '__main__':
         logger.info( "[%s] (%s) URL: %s" % ("getAPI", api_calls, msg['URL']) )
         if( not flag ):
             logger.error( "[%s] %s" % ("getAPI", msg['ERROR']) )
+            pp.pprint( result )
             exit()
 
         content['open_pr_count'] = result['total_count']
@@ -320,6 +331,7 @@ if __name__ == '__main__':
         logger.info( "[%s] (%s) URL: %s" % ("getAPI", api_calls, msg['URL']) )
         if( not flag ):
             logger.error( "[%s] %s" % ("getAPI", msg['ERROR']) )
+            pp.pprint( result )
             exit()
 
         content['closed_pr_count'] = result['total_count']
@@ -341,6 +353,7 @@ if __name__ == '__main__':
             logger.info( "[%s] (%s) URL: %s" % ("getAPI", api_calls, msg['URL']) )
             if( not flag ):
                 logger.error( "[%s] %s" % ("getAPI", msg['ERROR']) )
+                pp.pprint( result )
                 exit()
 
 

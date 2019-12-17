@@ -168,7 +168,18 @@ def getREADME( TEMPLATE, TOKEN ):
         result = re.sub('<.+?>', '', results.text, 0).strip()
         result = result.replace("\n", " ")
         result = re.sub('[-=+,#/\?:^$.@*\"※~&%ㆍ!』\\‘|\(\)\[\]\<\>`\'…》]', " ", result)
+
+        # 숫자와 영문만 남기기 위한 로직
+        #result = re.sub('[^0-9a-zA-Zㄱ-힗]', '', result)
+        result = re.sub('[^0-9a-zA-Z\s]', '', result)
         result = " ".join(result.split())
+
+        #pp = pprint.PrettyPrinter(indent=4)
+        #pp.pprint( result )
+        #exit()
+
+
+
 
 
     except requests.exceptions.RequestException as e:
