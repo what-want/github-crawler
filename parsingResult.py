@@ -319,7 +319,7 @@ if __name__ == '__main__':
             pp.pprint( result )
             exit()
 
-        content['open_pr_count'] = result['total_count']
+        content['closed_pr_count'] = result['total_count']
 
 
         template = {
@@ -334,7 +334,7 @@ if __name__ == '__main__':
             pp.pprint( result )
             exit()
 
-        content['closed_pr_count'] = result['total_count']
+        content['open_pr_count'] = result['total_count']
 
 
 
