@@ -8,6 +8,7 @@ import re
 import os
 import pprint
 
+pp = pprint.PrettyPrinter(indent=4)
 
 class GH_Template( string.Template ):
     delimiter = ":"
@@ -151,33 +152,51 @@ def getAPI( API, TEMPLATE, TOKEN, HEADERS=None ):
 
 def getREADME( TEMPLATE, TOKEN ):
 
-    URL = "https://raw.githubusercontent.com/:owner/:repo/:branch/README.md"
-    (flag, msg, result) = (True, "", "")
 
-    URL = GH_Template( URL ).safe_substitute( TEMPLATE )
-    URL += "&" if ( "?" in URL ) else "?"
-    if( TOKEN != "" ):
-        URL = "%saccess_token=%s" % (URL, TOKEN)
+    readme_files = [
+        "README.MD",  "README.md",  "readme.MD",  "readme.md",  "Readme.MD",  "Readme.md",
+        "README.TXT", "README.txt", "readme.TXT", "readme.txt", "Readme.TXT", "Readme.txt",
+        "README.RST", "README.rst", "readme.RST", "readme.rst", "Readme.RST", "Readme.rst"
+    ]
+
+    URL_BASE = "https://raw.githubusercontent.com/:owner/:repo/:branch/"
 
     results = None
 
+
     try:
 
-        results = requests.get( URL )
+        (flag, msg, result) = (True, "", "")
 
-        result = re.sub('<.+?>', '', results.text, 0).strip()
-        result = result.replace("\n", " ")
-        result = re.sub('[-=+,#/\?:^$.@*\"※~&%ㆍ!』\\‘|\(\)\[\]\<\>`\'…》]', " ", result)
+        for readme_file in readme_files:
 
-        # 숫자와 영문만 남기기 위한 로직
-        #result = re.sub('[^0-9a-zA-Zㄱ-힗]', '', result)
-        result = re.sub('[^0-9a-zA-Z\s]', '', result)
-        result = " ".join(result.split())
+            url = URL_BASE + readme_file
 
-        #pp = pprint.PrettyPrinter(indent=4)
+            url = GH_Template( url ).safe_substitute( TEMPLATE )
+            url += "&" if ( "?" in url ) else "?"
+
+            if( TOKEN != "" ):
+                url = "%saccess_token=%s" % (url, TOKEN)
+
+            results = requests.get( url )
+
+            if( results.status_code == 200 ): break
+
+
+        result = ""
+        if( results.status_code == 200 ):
+
+            result = re.sub('<.+?>', '', results.text, 0).strip()
+            result = result.replace("\n", " ")
+            result = re.sub('[-=+,#/\?:^$.@*\"※~&%ㆍ!』\\‘|\(\)\[\]\<\>`\'…》]', " ", result)
+
+            # 숫자와 영문만 남기기 위한 로직
+            #result = re.sub('[^0-9a-zA-Zㄱ-힗]', '', result)
+            result = re.sub('[^0-9a-zA-Z\s]', '', result)
+            result = " ".join(result.split())
+
         #pp.pprint( result )
         #exit()
-
 
 
 
@@ -194,3 +213,21 @@ def getREADME( TEMPLATE, TOKEN ):
 
 
     return (flag, msg, result)
+
+
+
+
+if __name__ == '__main__':
+
+
+    CFG = {
+        'TOKEN' : "a77f7f1e924bcb3a709107ffe6e60d592ea2c905"
+    }
+
+    template = {
+        "owner"    : "stanfordnlp",
+        "repo"     : "mac-network",
+        "branch"   : "master"
+    }
+
+    (flag, msg, result) = getREADME( template, CFG['TOKEN'] )
