@@ -54,6 +54,11 @@ API = {
     "GET-REPO" : {
         "URL"  : "https://api.github.com/repos/:owner/:repo",
         "TYPE" : "GET"
+    },
+
+    "RATE-LIMIT" : {
+        "URL"  : "https://api.github.com/rate_limit",
+        "TYPE" : "GET"
     }
 }
 

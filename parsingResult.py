@@ -7,6 +7,7 @@ import os
 import sys
 import datetime
 import tarfile
+import time
 
 # GitHub 관련된 모듈을 넣어 놓은 모듈
 import libGH as GH
@@ -15,6 +16,34 @@ import pprint
 
 
 pp = pprint.PrettyPrinter(indent=4)
+
+
+
+def GH_API( API, TEMPLATE, TOKEN, API_CALLS=0 ):
+
+    (flag, msg, result) = GH.getAPI( API, TEMPLATE, TOKEN )
+
+    API_CALLS += 1
+    logger.info( "[%s] (%s) URL: %s" % ("getAPI", API_CALLS, msg['URL']) )
+
+    if( not flag ):
+        logger.error( "[%s] %s" % ("getAPI", msg['ERROR']) )
+
+        #(flag, msg, result) = GH.getAPI( GH.API['RATE-LIMIT'], template, CFG['TOKEN'] )
+        #pp.pprint( result )
+        #result['rate']['reset'] = datetime.datetime.fromtimestamp(result['rate']['reset']).strftime('%Y-%m-%d %H:%M:%S')
+        #result['resources']['core']['reset'] = datetime.datetime.fromtimestamp(result['resources']['core']['reset']).strftime('%Y-%m-%d %H:%M:%S')
+        #result['resources']['search']['reset'] = datetime.datetime.fromtimestamp(result['resources']['search']['reset']).strftime('%Y-%m-%d %H:%M:%S')
+
+        pp.pprint( result )
+        exit()
+
+    return (flag, msg, result, API_CALLS)
+
+
+
+
+
 
 
 if __name__ == '__main__':
@@ -164,6 +193,23 @@ if __name__ == '__main__':
 
 
 
+        template = {}
+        (flag, msg, result, api_calls) = GH_API( GH.API['RATE-LIMIT'], template, CFG['TOKEN'], api_calls )
+        result['rate']['reset'] = datetime.datetime.fromtimestamp(result['rate']['reset']).strftime('%Y-%m-%d %H:%M:%S')
+        result['resources']['core']['reset'] = datetime.datetime.fromtimestamp(result['resources']['core']['reset']).strftime('%Y-%m-%d %H:%M:%S')
+        result['resources']['search']['reset'] = datetime.datetime.fromtimestamp(result['resources']['search']['reset']).strftime('%Y-%m-%d %H:%M:%S')
+        logger.info( "[%s] rate remaining (%s), reset(%s)" % ("rate-limiting", result['rate']['remaining'], result['rate']['reset']) )
+        logger.info( "[%s] core remaining (%s), reset(%s)" % ("rate-limiting", result['resources']['core']['remaining'], result['resources']['core']['reset']) )
+        logger.info( "[%s] search remaining (%s), reset(%s)" % ("rate-limiting", result['resources']['search']['remaining'], result['resources']['search']['reset']) )
+
+        if( result['resources']['search']['remaining'] < 5 ):
+            time.sleep(5)
+        else:
+            time.sleep(2.5)
+
+
+
+
         content = {}
 
         temps = info['full_name'].split("/")
@@ -206,13 +252,9 @@ if __name__ == '__main__':
             "repo"     : content['repo']
         }
 
-        (flag, msg, result) = GH.getAPI( GH.API['GET-REPO'], template, CFG['TOKEN'] )
-        api_calls += 1
-        logger.info( "[%s] (%s) URL: %s" % ("getAPI", api_calls, msg['URL']) )
-        if( not flag ):
-            logger.error( "[%s] %s" % ("getAPI", msg['ERROR']) )
-            pp.pprint( result )
-            exit()
+
+
+        (flag, msg, result, api_calls) = GH_API( GH.API['GET-REPO'], template, CFG['TOKEN'], api_calls )
 
         #pp = pprint.PrettyPrinter(indent=4)
         #pp.pprint( result )
@@ -237,13 +279,7 @@ if __name__ == '__main__':
 
         while True:
 
-            (flag, msg, results) = GH.getAPI( GH.API['CONTRIBUTORS-REPO'], template, CFG['TOKEN'] )
-            api_calls += 1
-            logger.info( "[%s] (%s) URL: %s" % ("getAPI", api_calls, msg['URL']) )
-            if( not flag ):
-                logger.error( "[%s] %s" % ("getAPI", msg['ERROR']) )
-                pp.pprint( result )
-                exit()
+            (flag, msg, results, api_calls) = GH_API( GH.API['CONTRIBUTORS-REPO'], template, CFG['TOKEN'], api_calls )
 
             for result in results:
                 contributors.append( result['login'] )
@@ -269,13 +305,7 @@ if __name__ == '__main__':
 
         while True:
 
-            (flag, msg, results) = GH.getAPI( GH.API['RELEASES-REPO'], template, CFG['TOKEN'] )
-            api_calls += 1
-            logger.info( "[%s] (%s) URL: %s" % ("getAPI", api_calls, msg['URL']) )
-            if( not flag ):
-                logger.error( "[%s] %s" % ("getAPI", msg['ERROR']) )
-                pp.pprint( result )
-                exit()
+            (flag, msg, results, api_calls) = GH_API( GH.API['RELEASES-REPO'], template, CFG['TOKEN'], api_calls )
 
             releases.extend( results )
 
@@ -294,13 +324,8 @@ if __name__ == '__main__':
             "q"        : "repo:%s+type:issue+state:closed" % info['full_name'],
             "per_page" : 1
         }
-        (flag, msg, result) = GH.getAPI( GH.API['SEARCH-ISSUE'], template, CFG['TOKEN'] )
-        api_calls += 1
-        logger.info( "[%s] (%s) URL: %s" % ("getAPI", api_calls, msg['URL']) )
-        if( not flag ):
-            logger.error( "[%s] %s" % ("getAPI", msg['ERROR']) )
-            pp.pprint( result )
-            exit()
+
+        (flag, msg, result, api_calls) = GH_API( GH.API['SEARCH-ISSUE'], template, CFG['TOKEN'], api_calls )
 
         content['closed_issues_count'] = result['total_count']
 
@@ -311,13 +336,8 @@ if __name__ == '__main__':
             "q"        : "repo:%s+type:pr+state:closed" % info['full_name'],
             "per_page" : 1
         }
-        (flag, msg, result) = GH.getAPI( GH.API['SEARCH-ISSUE'], template, CFG['TOKEN'] )
-        api_calls += 1
-        logger.info( "[%s] (%s) URL: %s" % ("getAPI", api_calls, msg['URL']) )
-        if( not flag ):
-            logger.error( "[%s] %s" % ("getAPI", msg['ERROR']) )
-            pp.pprint( result )
-            exit()
+
+        (flag, msg, result, api_calls) = GH_API( GH.API['SEARCH-ISSUE'], template, CFG['TOKEN'], api_calls )
 
         content['closed_pr_count'] = result['total_count']
 
@@ -326,13 +346,8 @@ if __name__ == '__main__':
             "q"        : "repo:%s+type:pr+state:open" % info['full_name'],
             "per_page" : 1
         }
-        (flag, msg, result) = GH.getAPI( GH.API['SEARCH-ISSUE'], template, CFG['TOKEN'] )
-        api_calls += 1
-        logger.info( "[%s] (%s) URL: %s" % ("getAPI", api_calls, msg['URL']) )
-        if( not flag ):
-            logger.error( "[%s] %s" % ("getAPI", msg['ERROR']) )
-            pp.pprint( result )
-            exit()
+
+        (flag, msg, result, api_calls) = GH_API( GH.API['SEARCH-ISSUE'], template, CFG['TOKEN'], api_calls )
 
         content['open_pr_count'] = result['total_count']
 
@@ -348,14 +363,7 @@ if __name__ == '__main__':
         tags = []
 
         while True:
-            (flag, msg, results) = GH.getAPI( GH.API['TAGS-REPO'], template, CFG['TOKEN'] )
-            api_calls += 1
-            logger.info( "[%s] (%s) URL: %s" % ("getAPI", api_calls, msg['URL']) )
-            if( not flag ):
-                logger.error( "[%s] %s" % ("getAPI", msg['ERROR']) )
-                pp.pprint( result )
-                exit()
-
+            (flag, msg, results, api_calls) = GH_API( GH.API['TAGS-REPO'], template, CFG['TOKEN'], api_calls )
 
             tags.extend( results )
 
