@@ -163,12 +163,28 @@ if __name__ == '__main__':
     CSV_keys = []
     if( os.path.isfile(CSVPATH) ):
 
+        write_contents = []
         with open(CSVPATH, "r") as f:
             lines = f.readlines()
             for idx, line in enumerate(lines):
-                if( idx == 0 ): continue
+                line = line.strip()
+                if( line == "" ): continue
+                if( idx == 0 ):
+                    write_contents.append( line )
+                    continue
+
                 temps = line.split(",")
-                CSV_keys.append( "%s/%s" % (temps[0], temps[1]) )
+                fullname = "%s/%s" % (temps[0], temps[1])
+
+                if( not fullname in CSV_keys ):
+                    write_contents.append( line )
+                    CSV_keys.append( "%s/%s" % (temps[0], temps[1]) )
+                else:
+                    logger.info( "[%s] duplicated csv info: %s" % ("main", fullname) )
+
+            with open(CSVPATH, "w") as f:
+                f.write( "\n".join(write_contents) + "\n" )
+
 
     else:
 
@@ -176,7 +192,6 @@ if __name__ == '__main__':
             f.write( ",".join(csv_order) + "\n" )
 
     logger.info( "[%s] loaded exists contents: %s" % ("main", len(CSV_keys)) )
-
 
 
 
