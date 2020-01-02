@@ -27,16 +27,21 @@ def GH_API( API, TEMPLATE, TOKEN, API_CALLS=0 ):
     logger.info( "[%s] (%s) URL: %s" % ("getAPI", API_CALLS, msg['URL']) )
 
     if( not flag ):
-        logger.error( "[%s] %s" % ("getAPI", msg['ERROR']) )
+        if( msg['CODE'] in [404, 422] ):
+            logger.info( "[%s] %s" % ("getAPI", msg['ERROR']) )
 
-        #(flag, msg, result) = GH.getAPI( GH.API['RATE-LIMIT'], template, CFG['TOKEN'] )
-        #pp.pprint( result )
-        #result['rate']['reset'] = datetime.datetime.fromtimestamp(result['rate']['reset']).strftime('%Y-%m-%d %H:%M:%S')
-        #result['resources']['core']['reset'] = datetime.datetime.fromtimestamp(result['resources']['core']['reset']).strftime('%Y-%m-%d %H:%M:%S')
-        #result['resources']['search']['reset'] = datetime.datetime.fromtimestamp(result['resources']['search']['reset']).strftime('%Y-%m-%d %H:%M:%S')
+        else:
 
-        pp.pprint( result )
-        exit()
+            logger.error( "[%s] %s" % ("getAPI", msg['ERROR']) )
+
+            #(flag, msg, result) = GH.getAPI( GH.API['RATE-LIMIT'], template, CFG['TOKEN'] )
+            #pp.pprint( result )
+            #result['rate']['reset'] = datetime.datetime.fromtimestamp(result['rate']['reset']).strftime('%Y-%m-%d %H:%M:%S')
+            #result['resources']['core']['reset'] = datetime.datetime.fromtimestamp(result['resources']['core']['reset']).strftime('%Y-%m-%d %H:%M:%S')
+            #result['resources']['search']['reset'] = datetime.datetime.fromtimestamp(result['resources']['search']['reset']).strftime('%Y-%m-%d %H:%M:%S')
+
+            pp.pprint( result )
+            exit()
 
     return (flag, msg, result, API_CALLS)
 
@@ -195,6 +200,21 @@ if __name__ == '__main__':
 
 
 
+
+
+    FAILPATH = DATAPATH.replace(".json", ".fail")
+
+    FAIL_keys = []
+    if( os.path.isfile(FAILPATH) ):
+
+        with open( FAILPATH ) as f:
+            FAIL_keys = json.load(f)
+
+    logger.info( "[%s] loaded failed contents: %s" % ("main", len(FAIL_keys)) )
+
+
+
+
     api_calls = 0
     for idx, info in enumerate(infos):
 
@@ -204,12 +224,24 @@ if __name__ == '__main__':
             logger.info( "[%s] (%s/%s) pass exists content: %s" % ("main", (idx+1), infos_count, info['full_name']) )
             continue
 
-        logger.info( "[%s] (%s/%s) generate content: %s" % ("main", (idx+1), infos_count, info['full_name']) )
 
+        if( info['full_name'] in FAIL_keys ):
+            logger.info( "[%s] (%s/%s) pass failed content: %s" % ("main", (idx+1), infos_count, info['full_name']) )
+            continue
+
+        logger.info( "[%s] (%s/%s) generate content: %s" % ("main", (idx+1), infos_count, info['full_name']) )
 
 
         template = {}
         (flag, msg, result, api_calls) = GH_API( GH.API['RATE-LIMIT'], template, CFG['TOKEN'], api_calls )
+        if( (not flag) and (msg['CODE'] in [404,422]) ):
+
+            FAIL_keys.append( info['full_name'] )
+
+            with open(FAILPATH, "w") as f:
+                f.write( json.dumps(FAIL_keys, indent=4) )
+
+            continue
         result['rate']['reset'] = datetime.datetime.fromtimestamp(result['rate']['reset']).strftime('%Y-%m-%d %H:%M:%S')
         result['resources']['core']['reset'] = datetime.datetime.fromtimestamp(result['resources']['core']['reset']).strftime('%Y-%m-%d %H:%M:%S')
         result['resources']['search']['reset'] = datetime.datetime.fromtimestamp(result['resources']['search']['reset']).strftime('%Y-%m-%d %H:%M:%S')
@@ -270,6 +302,14 @@ if __name__ == '__main__':
 
 
         (flag, msg, result, api_calls) = GH_API( GH.API['GET-REPO'], template, CFG['TOKEN'], api_calls )
+        if( (not flag) and (msg['CODE'] in [404,422]) ):
+
+            FAIL_keys.append( info['full_name'] )
+
+            with open(FAILPATH, "w") as f:
+                f.write( json.dumps(FAIL_keys, indent=4) )
+
+            continue
 
         #pp = pprint.PrettyPrinter(indent=4)
         #pp.pprint( result )
@@ -295,6 +335,14 @@ if __name__ == '__main__':
         while True:
 
             (flag, msg, results, api_calls) = GH_API( GH.API['CONTRIBUTORS-REPO'], template, CFG['TOKEN'], api_calls )
+            if( (not flag) and (msg['CODE'] in [404,422]) ):
+
+                FAIL_keys.append( info['full_name'] )
+
+                with open(FAILPATH, "w") as f:
+                    f.write( json.dumps(FAIL_keys, indent=4) )
+
+                break
 
             for result in results:
                 contributors.append( result['login'] )
@@ -302,6 +350,15 @@ if __name__ == '__main__':
 
             if( len(results) < template['per_page'] ): break
             template['page'] += 1
+
+        if( (not flag) and (msg['CODE'] in [404,422]) ):
+
+            FAIL_keys.append( info['full_name'] )
+
+            with open(FAILPATH, "w") as f:
+                f.write( json.dumps(FAIL_keys, indent=4) )
+
+            continue
 
         content['default_branch'] = info['default_branch']
         content['contributors'] = "#".join( contributors )
@@ -321,11 +378,28 @@ if __name__ == '__main__':
         while True:
 
             (flag, msg, results, api_calls) = GH_API( GH.API['RELEASES-REPO'], template, CFG['TOKEN'], api_calls )
+            if( (not flag) and (msg['CODE'] in [404,422]) ):
+
+                FAIL_keys.append( info['full_name'] )
+
+                with open(FAILPATH, "w") as f:
+                    f.write( json.dumps(FAIL_keys, indent=4) )
+
+                break
 
             releases.extend( results )
 
             if( len(results) < template['per_page'] ): break
             template['page'] += 1
+
+        if( (not flag) and (msg['CODE'] in [404,422]) ):
+
+            FAIL_keys.append( info['full_name'] )
+
+            with open(FAILPATH, "w") as f:
+                f.write( json.dumps(FAIL_keys, indent=4) )
+
+            continue
 
         content['releases_count'] = len(releases)
 
@@ -341,6 +415,14 @@ if __name__ == '__main__':
         }
 
         (flag, msg, result, api_calls) = GH_API( GH.API['SEARCH-ISSUE'], template, CFG['TOKEN'], api_calls )
+        if( (not flag) and (msg['CODE'] in [404,422]) ):
+
+            FAIL_keys.append( info['full_name'] )
+
+            with open(FAILPATH, "w") as f:
+                f.write( json.dumps(FAIL_keys, indent=4) )
+
+            continue
 
         content['closed_issues_count'] = result['total_count']
 
@@ -353,6 +435,14 @@ if __name__ == '__main__':
         }
 
         (flag, msg, result, api_calls) = GH_API( GH.API['SEARCH-ISSUE'], template, CFG['TOKEN'], api_calls )
+        if( (not flag) and (msg['CODE'] in [404,422]) ):
+
+            FAIL_keys.append( info['full_name'] )
+
+            with open(FAILPATH, "w") as f:
+                f.write( json.dumps(FAIL_keys, indent=4) )
+
+            continue
 
         content['closed_pr_count'] = result['total_count']
 
@@ -363,6 +453,14 @@ if __name__ == '__main__':
         }
 
         (flag, msg, result, api_calls) = GH_API( GH.API['SEARCH-ISSUE'], template, CFG['TOKEN'], api_calls )
+        if( (not flag) and (msg['CODE'] in [404,422]) ):
+
+            FAIL_keys.append( info['full_name'] )
+
+            with open(FAILPATH, "w") as f:
+                f.write( json.dumps(FAIL_keys, indent=4) )
+
+            continue
 
         content['open_pr_count'] = result['total_count']
 
@@ -379,11 +477,27 @@ if __name__ == '__main__':
 
         while True:
             (flag, msg, results, api_calls) = GH_API( GH.API['TAGS-REPO'], template, CFG['TOKEN'], api_calls )
+            if( (not flag) and (msg['CODE'] in [404,422]) ):
+
+                FAIL_keys.append( info['full_name'] )
+
+                with open(FAILPATH, "w") as f:
+                    f.write( json.dumps(FAIL_keys, indent=4) )
+
+                break
 
             tags.extend( results )
 
             if( len(results) < template['per_page'] ): break
             template['page'] += 1
+        if( (not flag) and (msg['CODE'] in [404,422]) ):
+
+            FAIL_keys.append( info['full_name'] )
+
+            with open(FAILPATH, "w") as f:
+                f.write( json.dumps(FAIL_keys, indent=4) )
+
+            continue
 
         content['tags_count'] = len(tags)
 

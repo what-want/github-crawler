@@ -129,7 +129,8 @@ def getAPI( API, TEMPLATE, TOKEN, HEADERS=None ):
         if( not results.status_code in [ 200, 201, 204 ] ):
 
             flag = False
-            msg['ERROR'] = "Recieved non 200 response : %s" % URL
+            msg['ERROR'] = "Recieved %s response : %s" % (results.status_code, URL)
+            msg['CODE'] = results.status_code
 
             #print "Error : %s" % results.status_code
             #print results.text
