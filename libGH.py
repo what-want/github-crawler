@@ -6,13 +6,17 @@ import string
 import requests
 import re
 import os
+import sys
 import pprint
+import tarfile
+import datetime
 
 pp = pprint.PrettyPrinter(indent=4)
 
 class GH_Template( string.Template ):
     delimiter = ":"
 
+api_call_count = 0
 
 API = {
 
@@ -67,7 +71,6 @@ TEMP_CFG = {
 
     "GH-CONTENTS-URL" : "https://raw.githubusercontent.com/:owner/:repo/:branch/README.md",
 
-
     # TOKEN 값이 없으면 연속으로 10번 이상 API 던지면 바로 아래와 같은 메시지 출력
     #{   u'documentation_url': u'https://developer.github.com/v3/#rate-limiting',
     #    u'message': u"API rate limit exceeded for 110.12.220.235. (But here's the good news: Authenticated requests get a higher rate limit. Check out the documentation for more details.)"}
@@ -84,14 +87,12 @@ TEMP_CFG = {
 
 
 
-def getAPI( API, TEMPLATE, TOKEN, HEADERS=None ):
+def getAPI( API, TEMPLATE, HEADERS=None ):
 
     (flag, msg, result) = (True, {}, "")
 
     URL = GH_Template( API['URL'] ).safe_substitute( TEMPLATE )
     URL += "&" if ( "?" in URL ) else "?"
-    if( TOKEN != "" ):
-        URL = "%saccess_token=%s" % (URL, TOKEN)
 
     if( ("page" in TEMPLATE.keys()) and (TEMPLATE['page'] > 1) ):
         URL = "%s&page=%s" % (URL, TEMPLATE['page'])
@@ -100,12 +101,8 @@ def getAPI( API, TEMPLATE, TOKEN, HEADERS=None ):
         URL = "%s&per_page=%s" % (URL, TEMPLATE['per_page'])
 
     msg['URL'] = URL
-
-
-    # params 사용하는 것으로 고민 필요
-    #requests.request('GET', url, params=params, headers=headers)
-
     results = None
+
 
     try:
 
@@ -135,9 +132,7 @@ def getAPI( API, TEMPLATE, TOKEN, HEADERS=None ):
             #print "Error : %s" % results.status_code
             #print results.text
 
-
         result = json.loads( results.text ) if (results.text != "") else ""
-
 
 
     except requests.exceptions.RequestException as e:
@@ -156,8 +151,134 @@ def getAPI( API, TEMPLATE, TOKEN, HEADERS=None ):
 
 
 
-def getREADME( TEMPLATE, TOKEN ):
 
+
+def search( API, template, header ):
+
+    # API 호출 횟수를 파악하기 위해서
+    global api_call_count
+
+    # Timeouts and incomplete results 이슈가 종종 발생하여 (GitHub API 제약) retry 로직을 넣음
+    # 5번 이상 재시도를 해도 안된다면 에러 상황이라 판단했다.
+    MAX_TRY = 5
+    while (MAX_TRY > 0):
+
+        api_call_count += 1
+        (flag, msg, results) = getAPI( API, template, header )
+
+        if( type(results) != type({}) ):
+            break
+
+        if( 'incomplete_results' not in results.keys() ):
+            break
+
+        if( not results['incomplete_results'] ):
+            break
+
+        if( (not flag) and (msg['CODE'] in [422]) ):
+            break
+
+        MAX_TRY -= 1
+
+    if( flag and (MAX_TRY == 0) ):
+        print("MAX_TRY = %s" % MAX_TRY)
+        print(flag)
+        print(msg)
+        print(results)
+        exit()
+
+    msg['api_call_count'] = api_call_count
+
+    return (flag, msg, results)
+
+
+
+def getPages( API, template, header ):
+
+    results = []
+    while True:
+
+        (flag, msg, result) = search( API, template, header )
+        if( not flag ):
+            break
+
+        results.extend( result )
+
+        if( len(result) < template['per_page'] ):
+            break
+
+        template['page'] += 1
+
+    return (flag, msg, results)
+
+
+
+
+
+def tarEncode( target, source ):
+
+    if( os.path.isfile(target) ):
+        os.remove( target )
+        print( "[%s] remove file: %s" % ("main", target) )
+
+    tar = tarfile.open( target, "w:gz")
+    tar.add( source )
+    tar.close()
+
+    return True
+
+
+
+# 일반적인 용도는 아니고, 여기의 특수한 상황에 맞춘 함수로 구성
+def tarDecode( filepath ):
+
+    if( not os.path.isfile( filepath ) ):
+        print( "[%s] can not find file: %s" % ("main", filepath) )
+        exit()
+
+    DATADIR = os.path.dirname(filepath)
+    DATAPATH = None
+    with tarfile.open( filepath, "r:gz") as tar:
+
+        for tarinfo in tar:
+            if not (tarinfo.isreg() and tarinfo.name.endswith('.json')): continue
+
+            tarinfo.name = os.path.basename(tarinfo.name)
+            DATAPATH = os.path.join( DATADIR, tarinfo.name )
+
+            if( os.path.isfile(DATAPATH) ):
+                continue
+
+            tar.extract(tarinfo, DATADIR)
+
+    return DATAPATH
+
+
+
+
+# RateLimit 값을 얻기 위한 함수 (API Call 소비하지 않는다)
+def getRateLimit( header ):
+
+    (flag, msg, result) = getAPI( API['RATE-LIMIT'], {}, header )
+
+    if( flag ):
+        result['rate']['reset_str'] = datetime.datetime.fromtimestamp(result['rate']['reset']).strftime('%Y-%m-%d %H:%M:%S')
+        result['resources']['search']['reset_str'] = datetime.datetime.fromtimestamp(result['resources']['search']['reset']).strftime('%Y-%m-%d %H:%M:%S')
+
+    return (flag, msg, result)
+
+
+
+
+def percent( part, whole ):
+    return 100*float(part)/float(whole)
+
+
+
+
+
+
+def getReadme( template ):
 
     readme_files = [
         "README.MD",  "README.md",  "readme.MD",  "readme.md",  "Readme.MD",  "Readme.md",
@@ -169,23 +290,17 @@ def getREADME( TEMPLATE, TOKEN ):
 
     results = None
 
-
     try:
 
         (flag, msg, result) = (True, "", "")
-
         for readme_file in readme_files:
 
             url = URL_BASE + readme_file
 
-            url = GH_Template( url ).safe_substitute( TEMPLATE )
+            url = GH_Template( url ).safe_substitute( template )
             url += "&" if ( "?" in url ) else "?"
 
-            if( TOKEN != "" ):
-                url = "%saccess_token=%s" % (url, TOKEN)
-
             results = requests.get( url )
-
             if( results.status_code == 200 ): break
 
 
@@ -201,12 +316,6 @@ def getREADME( TEMPLATE, TOKEN ):
             result = re.sub('[^0-9a-zA-Z\s]', '', result)
             result = " ".join(result.split())
 
-        #pp.pprint( result )
-        #exit()
-
-
-
-
     except requests.exceptions.RequestException as e:
 
         if( results != None ):
@@ -217,7 +326,6 @@ def getREADME( TEMPLATE, TOKEN ):
         flag = False
         msg = "Error: Exception in getREADME"
 
-
     return (flag, msg, result)
 
 
@@ -227,7 +335,7 @@ if __name__ == '__main__':
 
 
     CFG = {
-        'TOKEN' : "a77f7f1e924bcb3a709107ffe6e60d592ea2c905"
+        'TOKEN' : ""
     }
 
     template = {

@@ -5,82 +5,69 @@ import json
 import os
 import sys
 import datetime
+import time
 import tarfile
 import pprint
 
 # GitHub 관련된 모듈을 넣어 놓은 모듈
 import libGH as GH
 
-api_call_count = 0
 
 
+def sleepRateLimit( resetTime ):
 
-# tar.gz 압축 풀기
-def extractTarGz( filepath ):
+    while( True ):
+        now = datetime.datetime.now()
+        deltaTime = (resetTime - now).seconds
 
-    if( not os.path.isfile( filepath ) ):
-        print( "[%s] can not find file: %s" % ("main", filepath) )
-        exit()
+        sleepTime = (deltaTime // 5) + 1
 
-    DATADIR = "./data"
-    DATAPATH = None
-    with tarfile.open( filepath, "r:gz") as tar:
+        if( deltaTime > 80000 ):
+            break
 
-        for tarinfo in tar:
-            if not (tarinfo.isreg() and tarinfo.name.endswith('.json')): continue
+        print(". %s" % deltaTime),
+        sys.stdout.flush()
 
-            tarinfo.name = os.path.basename(tarinfo.name)
+        time.sleep( sleepTime )
 
-            DATAPATH = os.path.join( DATADIR, tarinfo.name )
-            print( "[%s] json filename: %s" % ("main", DATAPATH) )
+    print("")
 
-            if( os.path.isfile(DATAPATH) ):
-                print( "[%s] there is already json filename: %s" % ("main", DATAPATH) )
-                continue
-
-            tar.extract(tarinfo, DATADIR)
-
-
-    with open( DATAPATH ) as f:
-        infos = json.load(f)
-
-    infos_count = len(infos)
-
-    return (infos, infos_count, DATAPATH)
+    return True
 
 
 
 
+# contributor
+def getContributors( template, header ):
 
-# RateLimit 값을 얻기 위한 함수 (API Call 소비하지 않는다)
-def getRateLimit( template, token ):
+    contributors = []
+    commits_count = 0
+    while True:
 
-    # topic 값을 얻어오기 위해서는, Header 값을 잡아줘야 한다
-    HEADER = { "Accept" : "application/vnd.github.mercy-preview+json" }
+        (flag, msg, results) = GH.search( GH.API['CONTRIBUTORS-REPO'], template, header )
 
-    (flag, msg, result) = GH.getAPI( GH.API['RATE-LIMIT'], template, token, HEADER )
+        if( not flag ):
+            result = results
+            break
 
-    if( not flag ):
-        print( "[%s] %s" % ("getRateLimit", msg['ERROR']) )
-        exit()
+        for result in results:
+            contributors.append( result['login'] )
+            commits_count += result['contributions']
 
-    result['rate']['reset_str'] = datetime.datetime.fromtimestamp(result['rate']['reset']).strftime('%Y-%m-%d %H:%M:%S')
+        if( len(results) < template['per_page'] ):
+            result = {
+                'contributors'       : contributors,
+                'contributors_count' : len(contributors),
+                'commits_count'      : commits_count
+            }
+            break
 
-    print("    [%s] remaining = %s, reset = %s" % ("getRateLimit", result['rate']['remaining'], result['rate']['reset_str']))
+        template['page'] += 1
 
     return (flag, msg, result)
 
 
 
-
-
-
-
-
-
-
-def percent( part, whole ):
-    return 100*float(part)/float(whole)
 
 
 
@@ -95,8 +82,15 @@ if __name__ == '__main__':
 
     # 기본적인 설정값들을 담기 위한 변수 선언
     CFG = {
-        'NAME'   : sys.argv[0],
-        'SOURCE' : sys.argv[1]
+        'NAME'      : sys.argv[0],
+        'DIRPATH'   : { 'DATA' : './data' },
+        'FILEPATH'  : {
+            'tar'   : sys.argv[1]
+        },
+        'TIME'      : {
+            'now'   : datetime.datetime.now()
+        },
+        'CSV-ORDER' : []
     }
 
 
@@ -110,38 +104,40 @@ if __name__ == '__main__':
         print( "[%s] token is empty" % "main" )
 
 
-    date_info = {
-        'now'   : datetime.datetime.now()
-    }
+    # topic 값을 얻어오기 위해서는, Header 값을 잡아줘야 한다
+    CFG['HEADER'] = { "Accept" : "application/vnd.github.mercy-preview+json" }
+    if( CFG['TOKEN'] != "" ):
+        CFG['HEADER']['Authorization'] = 'token ' + CFG['TOKEN']
 
 
-    # 검색을 위한 옵션 모음
-    # stars 갯수가 1개 이상인 것들만 검색하기 위한 부분이 추가되어 있다.
-    template = {
-    #    "q"        : ("%s+created:%s..%s+stars:>0" % (CFG['KEYWORD'], created['start'].strftime('%Y-%m-%d'), created['end'].strftime('%Y-%m-%d'))),
-    #    "sort"     : "stars",
-    #    "order"    : "desc",
-    #    "page"     : 1,
-    #    "per_page" : 100
-    }
-
-
-
-    print("Start %s (%s).................................................." % (CFG['NAME'], date_info['now']))
-
+    print("Start %s (%s).................................................." % (CFG['NAME'], CFG['TIME']['now']))
     print("[%s] script name: %s" % ("main", CFG['NAME']))
-    print("[%s] source file: %s" % ("main", CFG['SOURCE']))
+    print("[%s] source file: %s" % ("main", CFG['FILEPATH']['tar']))
 
 
-    (infos, infos_count, CFG['EXTRACTED_FILEPATH']) = extractTarGz( CFG['SOURCE'] )
-    print( "[%s] loaded total counts: %s" % ("main", infos_count) )
+    CONTENTS = {
+        'RAW'         : {},
+        'SUCCESS'     : [],
+        'FAILURE'     : [],
+        'total_count' : 0
+    }
+
+    CFG['FILEPATH']['json'] = GH.tarDecode( CFG['FILEPATH']['tar'] )
+    with open( CFG['FILEPATH']['json'] ) as f:
+        CONTENTS['RAW'] = json.load(f)
+
+    CONTENTS['total_count'] = len(CONTENTS['RAW'])
+
+    print( "[%s] json filename: %s" % ("main", CFG['FILEPATH']['json']) )
+    print( "[%s] loaded total counts: %s" % ("main", CONTENTS['total_count']) )
 
 
-
+    CFG['FILEPATH']['csv'] = CFG['FILEPATH']['json'].replace(".json", ".csv")
+    CFG['FILEPATH']['fail'] = CFG['FILEPATH']['json'].replace(".json", "-fail.json")
 
 
     # CSV 파일에서 표시될 각 열의 순서를 정해주기 위해서 미리 선언
-    csv_order = [
+    CFG['CSV-ORDER'] = [
         'owner',
         'repo',
         'topics',
@@ -165,137 +161,71 @@ if __name__ == '__main__':
         'closed_pr_count'
     ]
 
-    CFG['TARGET'] = CFG['EXTRACTED_FILEPATH'].replace(".json", ".csv")
-
-    #pprint.pprint( infos[0] )
-    #exit()
 
 
 
-    #CSV_keys = []
-    #if( os.path.isfile(CSVPATH) ):
+    # 기존에 작업하던 내용이 있으면 이어서 진행할 수 있도록 정보를 읽어오는 부분
+    if( os.path.isfile(CFG['FILEPATH']['csv']) ):
 
-    #    write_contents = []
-    #    with open(CSVPATH, "r") as f:
-    #        lines = f.readlines()
-    #        for idx, line in enumerate(lines):
-    #            line = line.strip()
-    #            if( line == "" ): continue
-    #            if( idx == 0 ):
-    #                write_contents.append( line )
-    #                continue
+        with open( CFG['FILEPATH']['csv'] ) as f:
+            lines = f.readlines()
+            for idx, line in enumerate(lines):
+                line = line.strip()
+                if( (line == "") or (idx == 0) ):
+                    continue
 
-    #            temps = line.split(",")
-    #            fullname = "%s/%s" % (temps[0], temps[1])
+                temps = line.split(",")
+                full_name = "%s/%s" % (temps[0], temps[1])
+                CONTENTS['SUCCESS'].append( full_name )
 
-    #            if( not fullname in CSV_keys ):
-    #                write_contents.append( line )
-    #                CSV_keys.append( "%s/%s" % (temps[0], temps[1]) )
-    #            else:
-    #                logger.info( "[%s] duplicated csv info: %s" % ("main", fullname) )
+    else:
+        with open( CFG['FILEPATH']['csv'], "w") as f:
+            f.write( ",".join(CFG['CSV-ORDER']) + "\n" )
 
-    #        with open(CSVPATH, "w") as f:
-    #            f.write( "\n".join(write_contents) + "\n" )
-
-    #else:
-
-    #    with open(CSVPATH, "w") as f:
-    #        f.write( ",".join(csv_order) + "\n" )
-
-    #logger.info( "[%s] loaded exists contents: %s" % ("main", len(CSV_keys)) )
+    print( "[%s] loaded exists contents: %s" % ("main", len(CONTENTS['SUCCESS'])) )
 
 
 
 
 
-    #FAILPATH = DATAPATH.replace(".json", ".fail")
-
-    #FAIL_keys = []
-    #if( os.path.isfile(FAILPATH) ):
-
-    #    with open( FAILPATH ) as f:
-    #        FAIL_keys = json.load(f)
-
-    #logger.info( "[%s] loaded failed contents: %s" % ("main", len(FAIL_keys)) )
-
-
-    CONTENTS = {
-        'SUCCESS' : [],
-        'FAILURE' : []
-    }
-
-    for idx, info in enumerate(infos):
+    for idx, info in enumerate(CONTENTS['RAW']):
 
         # 이미 처리된 내역이면 패스~
         if( (info['full_name'] in CONTENTS['SUCCESS']) or (info['full_name'] in CONTENTS['FAILURE']) ):
-            print( "[%s] (%s/%s) pass exists content: %s" % ("main", (idx+1), infos_count, info['full_name']) )
+            print( "[%s] (%s/%s) pass exists content: %s" % ("main", (idx+1), CONTENTS['total_count'], info['full_name']) )
             continue
 
-        print( "[%s] (%s/%s) generate content: %s" % ("main", (idx+1), infos_count, info['full_name']) )
-
+        print( "[%s] (%s/%s, %0.2f%%) generate content: %s" % ("main", (idx+1), CONTENTS['total_count'], GH.percent((idx+1), CONTENTS['total_count']), info['full_name']) )
 
         content = {
-            'owner'            : info['owner']['login'],
-            'repo'             : info['name'],
-            'created_at'       : info['created_at'],
-            'updated_at'       : info['updated_at'],
-            'language'         : info['language'] if( info['language'] != None ) else "n/a",
-            'owner_type'       : info['owner']['type'],
-            'watchers_count'   : info['watchers_count'],
-            'stargazers_count' : info['stargazers_count'],
-            'forks_count'      : info['forks_count'],
-            'default_branch'   : info['default_branch'],
-            'topics'           : "#".join( info['topics'] ) if( len(info['topics']) > 0 ) else ""
+            'owner'             : info['owner']['login'],
+            'repo'              : info['name'],
+            'created_at'        : info['created_at'],
+            'updated_at'        : info['updated_at'],
+            'language'          : info['language'] if( info['language'] != None ) else "n/a",
+            'owner_type'        : info['owner']['type'],
+            'watchers_count'    : info['watchers_count'],
+            'stargazers_count'  : info['stargazers_count'],
+            'forks_count'       : info['forks_count'],
+            'default_branch'    : info['default_branch'],
+            'topics'            : "#".join( info['topics'] ) if( len(info['topics']) > 0 ) else "",
+            'open_issues_count' : info['open_issues_count']
         }
-
 
 
 
         # RateLimit에 걸리게 되면 reset 되는 때까지 sleep을 하기 위해서
-        template = {}
-        (flag, msg, result) = getRateLimit( template, CFG['TOKEN'] )
+        (flag, msg, result) = GH.getRateLimit( CFG['HEADER'] )
+        print("    [%s] core remaining = %s, reset = %s" % ("getRateLimit", result['rate']['remaining'], result['rate']['reset_str']))
+        print("    [%s] search remaining = %s, reset = %s" % ("getRateLimit", result['resources']['search']['remaining'], result['resources']['search']['reset_str']))
 
-        #if( result['rate']['remaining'] < 5 ):
-        #    time.sleep(5)
-        #else:
-        #    time.sleep(2.5)
+        if( result['rate']['remaining'] < 4 ):
+            print("    [%s] Normal RateLimit. Remain seconds = " % ("ratelimit")),
+            sleepRateLimit( datetime.datetime.fromtimestamp(result['rate']['reset']) )
 
-
-
-
-        # Readme.md 파일을 얻어오기 위한 부분
-        template = {
-            "owner"    : content['owner'],
-            "repo"     : content['repo'],
-            "branch"   : content['default_branch']
-        }
-        (flag, msg, result) = GH.getREADME( template, CFG['TOKEN'] )
-
-        # csv 제약에 따라 너무 많은 내용을 담지 못하기에 15000글자로 한정했음
-        content['readme'] = result[:15000] if (flag) else "n/a"
-
-
-
-
-        pprint.pprint( result )
-        exit()
-
-        'commits_count',
-        'contributors',
-        'contributors_count',
-        'releases_count',
-        'tags_count',
-        'open_issues_count',
-        'closed_issues_count',
-        'open_pr_count',
-        'closed_pr_count'
-
-
-
-
-
-
-
+        if( result['resources']['search']['remaining'] < 3 ):
+            print("    [%s] Search RateLimit. Remain seconds = " % ("ratelimit")),
+            sleepRateLimit( datetime.datetime.fromtimestamp(result['resources']['search']['reset']) )
 
 
 
@@ -307,66 +237,56 @@ if __name__ == '__main__':
             "repo"     : content['repo']
         }
 
-
-        (flag, msg, result, api_calls) = GH_API( GH.API['GET-REPO'], template, CFG['TOKEN'], api_calls )
-        if( (not flag) and (msg['CODE'] in [404,422]) ):
-
-            FAIL_keys.append( info['full_name'] )
-
-            with open(FAILPATH, "w") as f:
-                f.write( json.dumps(FAIL_keys, indent=4) )
-
+        (flag, msg, result) = GH.search( GH.API['GET-REPO'], template, CFG['HEADER'] )
+        if( not flag ):
+            CONTENTS['FAILURE'].append( info['full_name'] )
+            print("    [fail] get Watchers")
             continue
 
-        #pp = pprint.PrettyPrinter(indent=4)
-        #pp.pprint( result )
-        #exit()
-
-        content['subscribers_count'] = result['subscribers_count']
         content['watchers_count'] = result['subscribers_count']
+        print("    [%s] API(%s) get watchers_count: %s" % ("watchers_count", msg['api_call_count'], content['watchers_count']))
 
 
-        # 전체 commit을 확인하기 위해서 contributor들이 기여한 commit수를 얻어서 모두 더한다
+
+
+
+        # Readme.md 파일을 얻어오기 위한 부분
+        template = {
+            "owner"    : content['owner'],
+            "repo"     : content['repo'],
+            "branch"   : content['default_branch']
+        }
+        (flag, msg, result) = GH.getReadme( template )
+
+        # csv 제약에 따라 너무 많은 내용을 담지 못하기에 15000글자로 한정했음
+        content['readme'] = result[:15000] if (flag) else "n/a"
+        print("    [%s] readme length: %s" % ("readme", len(content['readme'])))
+
+
+
+
+
+        # contributors 명단과 count를 구하고, 각 contributors들이 기여한 commits 수를 더하면 전체 commit 수가 된다.
         template = {
             "owner"    : content['owner'],
             "repo"     : content['repo'],
             "per_page" : 100,
             "page"     : 1
         }
-        contributors = []
-        content['commits_count'] = 0
 
-        while True:
+        (flag, msg, result) = getContributors( template, CFG['HEADER'] )
 
-            (flag, msg, results, api_calls) = GH_API( GH.API['CONTRIBUTORS-REPO'], template, CFG['TOKEN'], api_calls )
-            if( (not flag) and (msg['CODE'] in [404,422]) ):
-
-                FAIL_keys.append( info['full_name'] )
-
-                with open(FAILPATH, "w") as f:
-                    f.write( json.dumps(FAIL_keys, indent=4) )
-
-                break
-
-            for result in results:
-                contributors.append( result['login'] )
-                content['commits_count'] += result['contributions']
-
-            if( len(results) < template['per_page'] ): break
-            template['page'] += 1
-
-        if( (not flag) and (msg['CODE'] in [404,422]) ):
-
-            FAIL_keys.append( info['full_name'] )
-
-            with open(FAILPATH, "w") as f:
-                f.write( json.dumps(FAIL_keys, indent=4) )
-
+        if( not flag ):
+            CONTENTS['FAILURE'].append( info['full_name'] )
+            print("    [fail] get contributors")
             continue
 
-        content['default_branch'] = info['default_branch']
-        content['contributors'] = "#".join( contributors )
-        content['contributors_count'] = len(contributors)
+        content['commits_count']      = result['commits_count']
+        content['contributors']       = "#".join( result['contributors'] )
+        content['contributors_count'] = result['contributors_count']
+        print("    [%s] contributors_count: %s, commits_count: %s" % ("contributors", content['contributors_count'], content['commits_count']))
+
+
 
 
         # release 수를 얻어오기 위한 API 호출
@@ -376,38 +296,38 @@ if __name__ == '__main__':
             "per_page" : 100,
             "page"     : 1
         }
-        releases = []
 
-        while True:
-
-            (flag, msg, results, api_calls) = GH_API( GH.API['RELEASES-REPO'], template, CFG['TOKEN'], api_calls )
-            if( (not flag) and (msg['CODE'] in [404,422]) ):
-
-                FAIL_keys.append( info['full_name'] )
-
-                with open(FAILPATH, "w") as f:
-                    f.write( json.dumps(FAIL_keys, indent=4) )
-
-                break
-
-            releases.extend( results )
-
-            if( len(results) < template['per_page'] ): break
-            template['page'] += 1
-
-        if( (not flag) and (msg['CODE'] in [404,422]) ):
-
-            FAIL_keys.append( info['full_name'] )
-
-            with open(FAILPATH, "w") as f:
-                f.write( json.dumps(FAIL_keys, indent=4) )
-
+        (flag, msg, results) = GH.getPages( GH.API['RELEASES-REPO'], template, CFG['HEADER'] )
+        if( not flag ):
+            CONTENTS['FAILURE'].append( info['full_name'] )
+            print("    [fail] get Releases")
             continue
 
-        content['releases_count'] = len(releases)
+        content['releases_count'] = len(results)
+        print("    [%s] releases_count: %s" % ("releases", content['releases_count']))
 
 
-        content['open_issues_count'] = info['open_issues_count']
+
+
+        # tags 수를 얻어오기 위한 API 호출
+        template = {
+            "owner"    : content['owner'],
+            "repo"     : content['repo'],
+            "per_page" : 100,
+            "page"     : 1
+        }
+
+        (flag, msg, results) =GH.getPages( GH.API['TAGS-REPO'], template, CFG['HEADER'] )
+        if( not flag ):
+            CONTENTS['FAILURE'].append( info['full_name'] )
+            print("    [fail] get Tags")
+            continue
+
+        content['tags_count'] = len(results)
+        print("    [%s] tags_count: %s" % ("tags", content['tags_count']))
+
+
+
 
         # closed issue 수를 얻어오기 위한 API 호출
         template = {
@@ -415,96 +335,75 @@ if __name__ == '__main__':
             "per_page" : 1
         }
 
-        (flag, msg, result, api_calls) = GH_API( GH.API['SEARCH-ISSUE'], template, CFG['TOKEN'], api_calls )
-        if( (not flag) and (msg['CODE'] in [404,422]) ):
+        (flag, msg, result) = GH.search( GH.API['SEARCH-ISSUE'], template, CFG['HEADER'] )
+        if( not flag ):
+            if( msg['CODE'] in [422] ):
+                result['total_count'] = 0
 
-            FAIL_keys.append( info['full_name'] )
-
-            with open(FAILPATH, "w") as f:
-                f.write( json.dumps(FAIL_keys, indent=4) )
-
-            continue
+            elif( msg['CODE'] in [404] ):
+                CONTENTS['FAILURE'].append( info['full_name'] )
+                print("    [fail] closed issues")
+                continue
 
         content['closed_issues_count'] = result['total_count']
+        print("    [%s] closed_issues_count: %s" % ("closed_issues", content['closed_issues_count']))
 
 
+
+
+        # closed pr 수를 얻어오기 위한 API 호출
         template = {
             "q"        : "repo:%s+type:pr+state:closed" % info['full_name'],
             "per_page" : 1
         }
+        (flag, msg, result) = GH.search( GH.API['SEARCH-ISSUE'], template, CFG['HEADER'] )
+        if( not flag ):
+            if( msg['CODE'] in [422] ):
+                result['total_count'] = 0
 
-        (flag, msg, result, api_calls) = GH_API( GH.API['SEARCH-ISSUE'], template, CFG['TOKEN'], api_calls )
-        if( (not flag) and (msg['CODE'] in [404,422]) ):
-
-            FAIL_keys.append( info['full_name'] )
-
-            with open(FAILPATH, "w") as f:
-                f.write( json.dumps(FAIL_keys, indent=4) )
-
-            continue
+            elif( msg['CODE'] in [404] ):
+                CONTENTS['FAILURE'].append( info['full_name'] )
+                print("    [fail] closed pr")
+                continue
 
         content['closed_pr_count'] = result['total_count']
+        print("    [%s] closed_pr_count: %s" % ("closed_pr", content['closed_pr_count']))
 
 
+
+
+
+        # open pr 수를 얻어오기 위한 API 호출
         template = {
             "q"        : "repo:%s+type:pr+state:open" % info['full_name'],
             "per_page" : 1
         }
+        (flag, msg, result) = GH.search( GH.API['SEARCH-ISSUE'], template, CFG['HEADER'] )
+        if( not flag ):
+            if( msg['CODE'] in [422] ):
+                result['total_count'] = 0
 
-        (flag, msg, result, api_calls) = GH_API( GH.API['SEARCH-ISSUE'], template, CFG['TOKEN'], api_calls )
-        if( (not flag) and (msg['CODE'] in [404,422]) ):
-
-            FAIL_keys.append( info['full_name'] )
-
-            with open(FAILPATH, "w") as f:
-                f.write( json.dumps(FAIL_keys, indent=4) )
-
-            continue
+            elif( msg['CODE'] in [404] ):
+                CONTENTS['FAILURE'].append( info['full_name'] )
+                print("    [fail] open pr")
+                continue
 
         content['open_pr_count'] = result['total_count']
+        print("    [%s] open_pr_count: %s" % ("open_pr", content['open_pr_count']))
 
 
-        template = {
-            "owner"    : content['owner'],
-            "repo"     : content['repo'],
-            "per_page" : 100,
-            "page"     : 1
-        }
-        tags = []
-
-        while True:
-            (flag, msg, results, api_calls) = GH_API( GH.API['TAGS-REPO'], template, CFG['TOKEN'], api_calls )
-            if( (not flag) and (msg['CODE'] in [404,422]) ):
-
-                FAIL_keys.append( info['full_name'] )
-
-                with open(FAILPATH, "w") as f:
-                    f.write( json.dumps(FAIL_keys, indent=4) )
-
-                break
-
-            tags.extend( results )
-
-            if( len(results) < template['per_page'] ): break
-            template['page'] += 1
-        if( (not flag) and (msg['CODE'] in [404,422]) ):
-
-            FAIL_keys.append( info['full_name'] )
-
-            with open(FAILPATH, "w") as f:
-                f.write( json.dumps(FAIL_keys, indent=4) )
-
-            continue
-
-        content['tags_count'] = len(tags)
 
 
+        # 중간에 끊겼다가 재시작 할 때 이어서 할 수 있도록 1건마다 계속 file write 수행
+        # csv_order에 있는 순서대로 쓰여지도록 처리
         write_content = []
-        for key in csv_order:
+        for key in CFG['CSV-ORDER']:
 
+            # 숫자형 데이터를 CSV로 쓰려고 하면 오류가 발생해서, string 캐스팅
             if( type(content[key]) == type(1) ):
                 content[key] = str(content[key])
 
+            # 있으면 안되는 None 타입이 있으면 종료! (예외 처리 해줘야 함!)
             elif( type(content[key]) == type(None) ):
                 print key
                 print content[key]
@@ -512,166 +411,16 @@ if __name__ == '__main__':
 
             write_content.append( content[key].encode("utf-8") )
 
-        with open(CSVPATH, "a") as f:
+
+        # 뒤에 계속 붙이는 방식으로 저장
+        with open(CFG['FILEPATH']['csv'], "a") as f:
             f.write( ",".join(write_content) + "\n" )
 
-        CSV_keys.append( info['full_name'] )
+        CONTENTS['SUCCESS'].append( info['full_name'] )
 
 
-    exit(0)
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-    # 검색어에 따른 전체 규모를 파악하기 위한 API 호출
-    (flag, msg, result) = searchKeyword( template, CFG['TOKEN'] )
-    #print("[searchKeyword] items = %s, total_count = %s" % (len(result['items']), result['total_count']))
-
-    searched = {
-        'total_count' : int(result['total_count']),
-        'items'       : []
-    }
-    print("[%s] Total Count = %s" % ("main", searched['total_count']))
-
-
-    # 결과가 1000개 이하면, paging 처리하고 마무리
-    if( result['total_count'] < 1000 ):
-        print("[%s] under 1000", "main")
-
-        searched['items'] = result['items']
-
-        if( len(searched['items']) == 100 ):
-            searched['items'].extend( pagingSearch( template, CFG['TOKEN'] ) )
-
-
-    # 결과가 1000개 이상이면, 기간을 이용해서 구간 나누어서 검색 처리
-    else:
-
-        while True:
-
-            if( result['total_count'] < 1000 ):
-                print("under 1000... total_count = %s, Searched = %s (%0.2f%%)" %
-                                    (result['total_count'], len(searched['items']), percent(len(searched['items']), searched['total_count'])))
-
-                searched['items'].extend(result['items'])
-
-                temp_total_count = result['total_count']
-
-                if( len(result['items']) == 100 ):
-                    searched['items'].extend( pagingSearch( template, CFG['TOKEN'] ) )
-
-
-            else:
-                print("over 1000... total_count = %s, Searched = %s (%0.2f%%)" %
-                                    (result['total_count'], len(searched['items']), percent(len(searched['items']), searched['total_count'])))
-
-                print("    [before] delta = %s, start = %s, end = %s" %
-                                    (created['delta'], created['start'].strftime('%Y-%m-%d'), created['end'].strftime('%Y-%m-%d')))
-
-                (created, template, result) = setCreated( template, CFG['TOKEN'], created, CFG['KEYWORD'], result['total_count'] )
-
-                print("    [after] delta = %s, start = %s, end = %s" %
-                                    (created['delta'], created['start'].strftime('%Y-%m-%d'), created['end'].strftime('%Y-%m-%d')))
-
-                searched['items'].extend( result['items'] )
-
-                temp_total_count = result['total_count']
-
-                if( len(result['items']) == 100 ):
-                    searched['items'].extend( pagingSearch( template, CFG['TOKEN'] ) )
-
-
-            if( searched['total_count'] <= len(searched['items']) ):
-                break
-
-
-            # 검색 결과가 적을 경우 검색 일정 범위를 넓히기 위한 부분
-            # 뭔가 로직을 넣을 수도 있을 것 같은데, 그냥 급히~
-            if( temp_total_count < 50 ):
-                created['delta'] *= 20
-            elif( temp_total_count < 100 ):
-                created['delta'] *= 10
-            elif( temp_total_count < 200 ):
-                created['delta'] *= 5
-            elif( temp_total_count < 300 ):
-                created['delta'] *= 3
-            elif( temp_total_count  < 500 ):
-                created['delta'] *= 2
-
-            #print("before total_count: %s, delta: %s" % (temp_total_count, created['delta']))
-            print("[%s] Searched = %s (%0.2f%%), delta = %s (%s ~ %s)" %
-                ("main", len(searched['items']), percent(len(searched['items']),searched['total_count']),
-                    created['delta'], created['start'].strftime('%Y-%m-%d'), created['end'].strftime('%Y-%m-%d')))
-
-
-            created['end'] = created['start'] - datetime.timedelta(days=1)
-            created['start'] = created['end'] - datetime.timedelta(days=created['delta'])
-            template['page'] = 1
-
-            if( int(created['end'].strftime('%Y')) < 2000 ):
-                #created['end'] = date.fromisoformat('2000-01-01')
-                #created['start'] = created['end'] - datetime.timedelta(days=created['delta'])
-                # 1900년 이전 이슈로 인해서... 2000년 이전 데이터는 일단 무시하는 것으로...
-                break
-
-            if( int(created['start'].strftime('%Y')) < 2000 ):
-                break
-
-
-            template['q'] = ( "%s+created:%s..%s+stars:>0" % (CFG['KEYWORD'], created['start'].strftime('%Y-%m-%d'), created['end'].strftime('%Y-%m-%d')))
-            (flag, msg, result) = searchKeyword( template, CFG['TOKEN'] )
-
-
-    print("[Finish] Total Count = %s, Searched Count = %s" % (searched['total_count'], len(searched['items'])))
-
-
-
-
-    # 결과 저장하기
-    DATADIR = "./data"
-    DATAPATH = os.path.join( DATADIR, ("%s.json" % CFG['KEYWORD'].replace("+", "_")) )
-
-    if( not os.path.isdir( DATADIR ) ):
-        os.mkdir( DATADIR )
-        print( "[%s] mkdir: %s" % ("main", DATADIR) )
-
-    with open(DATAPATH, "w") as f:
-        f.write( json.dumps(searched['items'], indent=4) )
-    print( "[%s] write file: %s" % ("main", DATAPATH) )
-
-
-
-    # 용량이 커서 tar.gz 압축을 해봤다.
-    TARPATH = os.path.join( DATADIR, ("%s.tar.gz" % CFG['KEYWORD'].replace("+", "_")) )
-
-    if( os.path.isfile( TARPATH ) ):
-        os.remove( TARPATH )
-        print( "[%s] remove file: %s" % ("main", TARPATH) )
-
-    tar = tarfile.open( TARPATH, "w:gz")
-    tar.add( DATAPATH )
-    tar.close()
-    print( "[%s] write tar.gz file: %s" % ("main", TARPATH) )
+    with open(CFG['FILEPATH']['fail'], "w") as f:
+        f.write( "\n".join(CONTENTS['FAILURE']) )
 
     exit(0)
