@@ -415,6 +415,7 @@ if __name__ == '__main__':
         # 뒤에 계속 붙이는 방식으로 저장
         with open(CFG['FILEPATH']['csv'], "a") as f:
             f.write( ",".join(write_content) + "\n" )
+        print("    [%s] update to file" % "main")
 
         CONTENTS['SUCCESS'].append( info['full_name'] )
 
@@ -422,5 +423,6 @@ if __name__ == '__main__':
 
     with open(CFG['FILEPATH']['fail'], "w") as f:
         f.write( "\n".join(CONTENTS['FAILURE']) )
+    print("[finish] write to fail history : %s" % CFG['FILEPATH']['fail'])
 
     exit(0)
