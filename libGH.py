@@ -344,4 +344,4 @@ if __name__ == '__main__':
         "branch"   : "master"
     }
 
-    (flag, msg, result) = getREADME( template, CFG['TOKEN'] )
+    (flag, msg, result) = getReadme( template, CFG['TOKEN'] )
