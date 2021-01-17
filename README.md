@@ -5,9 +5,9 @@
 
 ## Prequisite (Development/Execution Environment)
 
-- Python 2.7.x (+ requests)
+- Python 2.7.x (+ requests & pandas)
 ```bash
-$ sudo apt install python-requests
+$ sudo apt install python-requests python-pandas
 ```
 
 
@@ -48,6 +48,16 @@ $ ./2getRepoInfo.py "./data/(keyword).tar.gz"
 ```
 
   - 중간에 끊긴 경우, 다시 실행하면 이어서 진행됩니다.
+
+### Optional : 기존 검색 결과 재활용
+  - 기존에 검색해놓은 결과가 있으면 이를 먼저 채워넣을 수 있음
+    - Step1 실행 후, Step2 실행하기 전에 수행하면 됨
+    - Step2 실행 하던 중간에도 적용 가능
+  - pandas 기반으로 작성되어 pandas library 설치 필요
+
+```bash
+$ ./3duplicatedRepo.py --keyword '[keyword]' --path [./data]
+```
 
 
 ## FAQ
