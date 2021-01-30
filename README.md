@@ -27,8 +27,10 @@ $ export WW_TOKEN='token'
   - star 갯수가 1개 이상인 Repository에 대해서만 수집
 
 ```bash
-$ ./1searchKeyword.py "keyword"
+$ ./1searchKeyword.py "keyword" [--no-stars]
 ```
+
+  - `--no-stars` 옵션을 사용하면 stars 조건이 없는 검색을 합니다
 
   - 검색 결과는 아래 경로에 저장된다.
 ```
